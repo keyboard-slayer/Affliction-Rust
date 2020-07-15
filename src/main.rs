@@ -20,9 +20,9 @@ use std::{process::Command, str::{from_utf8, Utf8Error}};
 
 fn get_devices() -> Result<Vec<String>, Utf8Error> {
 	let output_utf8 = Command::new("wmic")
-							.args(&["logicaldisk", "get", "name"])
-							.output()
-							.expect("Failed to run the command !");
+				.args(&["logicaldisk", "get", "name"])
+				.output()
+				.expect("Failed to run the command !");
 	
 	let output: &str = from_utf8(&output_utf8.stdout)?;
 	let mut result: Vec<&str> = output.split_whitespace().collect::<Vec<&str>>();
