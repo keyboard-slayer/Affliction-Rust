@@ -16,24 +16,54 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{process::Command, str::{from_utf8, Utf8Error}};
+use std::process::{Command, exit};
+use std::str::from_utf8;
+use std::fs::{self, DirEntry};
 
-fn get_devices() -> Result<Vec<String>, Utf8Error> {
+fn get_devices() -> Vec<String> {
 	let output_utf8 = Command::new("wmic")
 							.args(&["logicaldisk", "get", "name"])
 							.output()
 							.expect("Failed to run the command !");
-	
-	let output: &str = from_utf8(&output_utf8.stdout)?;
-	let mut result: Vec<&str> = output.split_whitespace().collect::<Vec<&str>>();
-	result.remove(0);
 
-	let result: Vec<String> = result.into_iter().map(|x| String::from(x)).collect();
-	Ok(result)
+	if let Ok(output) = from_utf8(&output_utf8.stdout) {
+		let mut result: Vec<&str> = output.split_whitespace().collect::<Vec<&str>>();
+		result.remove(0); let result: Vec<String> = result.into_iter().map(|x| String::from(x)).collect();
+		return result;
+	} else {
+		eprintln!("Couldn't interprete the output of the wmic command");
+		exit(1);
+	}
+}
+
+fn find_new_device(start: Vec<String>, now: Vec<String>) -> String {
+	for drive in now {
+		if !start.contains(&drive) {
+			return drive;
+		}
+	}
+
+	String::from("REMOVED")
+}
+
+fn find_documents(new_drive: String) -> Vec<String> {
+	let documents = Vec::new();
+
+	documents
 }
 
 fn main() {
-	if let Ok(result) = get_devices() {
-		println!("{:?}", result);
+	let mut start: Vec<String> = get_devices();
+
+	loop {
+		if get_devices() != start {
+			let new_drive = find_new_device(start.clone(), get_devices());
+
+			if new_drive == "REMOVED" {
+				start = get_devices();
+			} else {
+				let paths = find_documents(new_drive);
+			}
+		}
 	}
 }
