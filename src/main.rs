@@ -16,9 +16,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+use std::io;
 use std::process::{Command, exit};
 use std::str::from_utf8;
-use std::fs::{self, DirEntry};
+use std::fs::read_dir;
 
 fn get_devices() -> Vec<String> {
 	let output_utf8 = Command::new("wmic")
@@ -46,10 +47,27 @@ fn find_new_device(start: Vec<String>, now: Vec<String>) -> String {
 	String::from("REMOVED")
 }
 
-fn find_documents(new_drive: String) -> Vec<String> {
-	let documents = Vec::new();
+fn find_documents(dir: String) -> io::Result<Vec<String>> {
+	let mut documents: Vec<String> = Vec::new();
 
-	documents
+	let paths = read_dir(dir)?;
+	for entry in paths {
+		let entry = entry?;
+		let path = entry.path().display().to_string();
+
+		if entry.path().is_dir() {
+			let mut subdocuments = find_documents(path)?;
+			documents.append(&mut subdocuments);
+		} else {
+			let mut filename = path.split(".").collect::<Vec<&str>>();
+			filename.reverse();
+			if vec!["pdf", "xls", "odt", "doc", "docx", "xlsx", "rtf", "xlsm"].contains(&filename[0]) {
+				documents.push(path);
+			}
+		}
+	}
+
+	Ok(documents)
 }
 
 fn main() {
@@ -57,12 +75,17 @@ fn main() {
 
 	loop {
 		if get_devices() != start {
-			let new_drive = find_new_device(start.clone(), get_devices());
+			let mut new_drive = find_new_device(start.clone(), get_devices());
 
 			if new_drive == "REMOVED" {
 				start = get_devices();
 			} else {
-				let paths = find_documents(new_drive);
+				new_drive.push('\\');
+				if let Ok(paths) = find_documents(new_drive) {
+					println!("{:?}", paths);
+				}
+
+				start = get_devices();
 			}
 		}
 	}
